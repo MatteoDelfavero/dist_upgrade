@@ -16,6 +16,7 @@ nala_install(){
     wget -qO - https://deb.volian.org/volian/scar.key | sudo tee /etc/apt/trusted.gpg.d/volian-archive-scar-unstable.gpg
     if [ "$1" -eq 1 ];
     then
+        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A87015F3DA22D980
         sudo apt update 
         sudo apt -y install nala-legacy
     fi
@@ -83,12 +84,12 @@ main(){
         sudo rm -f /var/lib/apt/lists/* > /dev/null
 
         #Nala package kezelő ellenőrzése
-        if ! check_nala;
-        then
-            echo "Nala nincs telepítve ERROR"
-            exit 1
-        fi
-        sudo nala update
+        # if ! check_nala;
+        # then
+        #     echo "Nala nincs telepítve ERROR"
+        #     exit 1
+        # fi
+        sudo apt update -y
 
         exitcode=$?; sed '/IN PROGRESS/d' -i $file
         if [ $exitcode -ne 0 ] && [ $exitcode -ne 100 ]; then
@@ -113,20 +114,20 @@ main(){
         if [ $(sudo cat /etc/os-release |grep VERSION_ID | grep 18 | wc -l) -ne 0 ];
         then
             echo "[INFO] apt-bol telepitett Chromium eltavolitasa"
-            yes | sudo nala remove chromium-browser-l10n -y # via Zsolt
+            yes | sudo apt remove chromium-browser-l10n -y # via Zsolt
             sudo snap set system proxy.http="http://dc-proxy01.server.bardihu.lan:3128" # via Zsolt
             sudo snap set system proxy.http="https://dc-proxy01.server.bardihu.lan:3128" # via Zsolt
             sudo sh -c "echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections" # via Zsolt
-            sudo DEBIAN_FRONTEND=noninteractive nala install keyboard-configuration # via Zsolt removed -yq
-            sudo nala install -y -q # via Zsolt via Laszlo
-            nala install msttcorefonts -qq # via Zsolt via Laszlo
+            sudo DEBIAN_FRONTEND=noninteractive apt install keyboard-configuration # via Zsolt removed -yq
+            sudo apt install -y -q # via Zsolt via Laszlo
+            apt install msttcorefonts -qq # via Zsolt via Laszlo
             snap install chromium # via Zsolt
         fi
     
         #sleep 60 
         #sudo timeout 7200 apt upgrade -o Acquire::http::Dl-Limit=512 -y --allow-unauthenticated </dev/null # ketto oraig futhat max
         # ketto oraig futhat max
-        yes | sudo timeout 7200 nala upgrade -fy --allow-unauthenticated --with-new-pkgs </dev/null
+        yes | sudo timeout 7200 apt upgrade -fy --allow-unauthenticated --with-new-pkgs </dev/null
 
         exitcode=$?; sed '/IN PROGRESS/d' -i $file
         if [[ $exitcode -eq 0 ]] || [[ $exitcode -eq 124 ]];
@@ -144,7 +145,7 @@ main(){
             echo "[INFO] Nem sikerult lefuttatni az apt upgrade-t. Visszateresi ertek: $exitcode"
             sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPGRADE FAILED" --icon=dialog-information'
             echo "[INFO] apt fix missing futtatasa"
-            sudo nala update --fix-missing >/dev/null
+            sudo apt update --fix-missing >/dev/null
             sudo su user -c ' DISPLAY=:0 notify-send -t 0 "KLIENS UJRAINDITASA EGY PERCEN BELUL" --icon=dialog-information'
             sleep 5; sudo reboot
             exit 1
@@ -170,14 +171,14 @@ main(){
     
         # yes | DEBIAN_FRONTEND=noninteractive sudo timeout 7200 apt -o Dpkg::Options::="--force-confnew" --force-yes -fuy dist-upgrade  --allow-unauthenticated  < /dev/null
         # yes | DEBIAN_FRONTEND=noninteractive sudo timeout 7200 apt -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --force-yes -fuy dist-upgrade#  --allow-unauthenticated  < /dev/null
-        yes | nala dist-upgrade -y # via Zsolt
+        yes | apt dist-upgrade -y # via Zsolt
         yes | sudo timeout 7200 do-release-upgrade -f DistUpgradeViewNonInteractive </dev/null # ketto oraig futhat max
         exitcode=$?; sed '/IN PROGRESS/d' -i $file
     
-        yes | nala update -y # via Zsolt
-        yes | nala upgrade -y # via Zsolt
-        yes | nala autoremove -y # via Zsolt
-        yes |  nala clean # via Zsolt
+        yes | apt update -y # via Zsolt
+        yes | apt upgrade -y # via Zsolt
+        yes | apt autoremove -y # via Zsolt
+        yes |  apt clean # via Zsolt
 
         sudo rm -f /etc/apt/apt.conf.d/local
         # grub reinstall
@@ -205,10 +206,10 @@ main(){
 
 
 
-if ! check_nala;
-then
-    nala_install 1
-fi
+# if ! check_nala;
+# then
+#     nala_install 1
+# fi
 
 kill_systemd_p
 watchdog_timelimit
