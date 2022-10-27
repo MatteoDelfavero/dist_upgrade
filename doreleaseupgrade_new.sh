@@ -10,8 +10,10 @@ runtype3="APT DISTUPGRADE"
 
 # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
 kill_systemd_p(){
-    ps aux | grep apt.systemd | grep -v gre0p | awk '{print $2}' | while read line; do kill -9 $line; done # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
-    sudo rm -f /var/lib/dpkg/lock* # es az ahhoz tartozo lockfajlt is
+    # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
+    ps aux | grep apt.systemd | grep -v gre0p | awk '{print $2}' | while read line; do kill -9 $line; done
+    # es az ahhoz tartozo lockfajlt is
+    sudo rm -f /var/lib/dpkg/lock* 
 }
 
 # ha tobb mint fel napig nem sikerult frissiteni, ujrakezdjuk az egeszet  
@@ -93,7 +95,7 @@ main(){
         
         yes | sudo dpkg --configure -a > /dev/null
 
-        if [ $(sudo cat /etc/os-release |grep VERSION_ID | grep 18 | wc -l) -ne 0 ];
+        if [ $(sudo cat /etc/os-release | grep VERSION_ID | grep 18 | wc -l) -ne 0 ];
         then
             echo "[INFO] apt-bol telepitett Chromium eltavolitasa"
             yes | sudo apt remove chromium-browser-l10n -y # via Zsolt
@@ -102,8 +104,9 @@ main(){
             sudo sh -c "echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections" # via Zsolt
             sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install keyboard-configuration # via Zsolt
             # sudo apt-get install -y -q # via Zsolt TODO
-            apt-get install msttcorefonts -qq # via Zsolt
-            snap install chromium # via Zsolt
+            sudo apt-get update -y
+            sudo apt-get install msttcorefonts -qq # via Zsolt
+            sudo snap install chromium # via Zsolt
         fi
     
         #sleep 60 
@@ -146,19 +149,19 @@ main(){
 
         sudo rm -f /var/lib/apt/lists/* > /dev/null
         yes | sudo dpkg --configure -a > /dev/null
-        yes | apt-get update --fix-missing >/dev/null # via Zsolt
+        yes | sudo apt-get update --fix-missing >/dev/null # via Zsolt
 
         # yes | sudo apt install -f -y > /dev/null
         # yes | DEBIAN_FRONTEND=noninteractive sudo timeout 7200 apt -o Dpkg::Options::="--force-confnew" --force-yes -fuy dist-upgrade  --allow-unauthenticated  < /dev/null
         # yes | DEBIAN_FRONTEND=noninteractive sudo timeout 7200 apt -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --force-yes -fuy dist-upgrade#  --allow-unauthenticated  < /dev/null
-        yes | apt dist-upgrade -y # via Zsolt
+        yes | sudo apt dist-upgrade -y # via Zsolt
         yes | sudo timeout 7200 do-release-upgrade -f DistUpgradeViewNonInteractive </dev/null # ketto oraig futhat max
         exitcode=$?; sed '/IN PROGRESS/d' -i $file
     
-        yes | apt update -y # via Zsolt
-        yes | apt upgrade -y # via Zsolt
-        yes | apt autoremove -y # via Zsolt
-        yes | apt clean # via Zsolt
+        yes | sudo apt update -y # via Zsolt
+        yes | sudo apt upgrade -y # via Zsolt
+        yes | sudo apt autoremove -y # via Zsolt
+        yes | sudo apt clean # via Zsolt
 
         sudo rm -f /etc/apt/apt.conf.d/local
         # grub reinstall
