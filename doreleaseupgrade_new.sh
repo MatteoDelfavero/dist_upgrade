@@ -7,23 +7,6 @@ runtype="APT UPDATE"
 runtype2="APT UPGRADE"
 runtype3="APT DISTUPGRADE"
 
-chech_nala(){
-    return command -v "nala" &> /dev/null
-}
-
-nala_install(){
-    echo "deb http://deb.volian.org/volian/ scar main" | sudo tee /etc/apt/sources.list.d/volian-archive-scar-unstable.list
-    wget -qO - https://deb.volian.org/volian/scar.key | sudo tee /etc/apt/trusted.gpg.d/volian-archive-scar-unstable.gpg
-    if [ "$1" -eq 1 ];
-    then
-        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A87015F3DA22D980
-        sudo apt update 
-        sudo apt -y install nala-legacy
-    fi
-}
-
-
-
 
 # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
 kill_systemd_p(){
@@ -43,15 +26,18 @@ watchdog_timelimit(){
 main(){
     if [ -f $file ]; then
         # Ha minden lefutott, akkor nem megyunk tovabb
-        if [ $(grep -E "\[FATAL\]|\[SUCCESS\]" $file | wc -l) -ne 0 ]; then 
+        if [ $(grep -E "\[FATAL\]|\[SUCCESS\]" $file | wc -l) -ne 0 ];
+        then 
             echo -e "[INFO] A szkript vegigfutott:\n$(cat $file)"
             exit 0
         else
-            if [ $(grep "$runtype OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype2 OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype3 OK" $file | wc -l) -ne 0 ]; then
+            if [ $(grep "$runtype OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype2 OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype3 OK" $file | wc -l) -ne 0 ];
+            then
                 old=$(head -1 $file)
                 new=$(cat /etc/os-release  | grep -i PRETT | cut -d '"' -f 2 | cut -d "." -f 1)
                 echo "[INFO] Kiindulasi verzio: $old | Uj verzio: $new"
-                if [[ "$old" = "$new" ]]; then
+                if [[ "$old" = "$new" ]];
+                then
                     echo "[FATAL] A frissites sikertelen volt."
                     mv $file $file.$(date +%s)
                     sudo reboot
@@ -65,7 +51,8 @@ main(){
     fi
 
     # ha fut folyamat, akkor nem megyunk tovabb
-    if [ -f $file ] && [ $(grep "IN PROGRESS" $file | wc -l) -ne 0 ]; then 
+    if [ -f $file ] && [ $(grep "IN PROGRESS" $file | wc -l) -ne 0 ];
+    then 
         echo -e "[INFO] Folyamat fut:\n$(cat $file)"
         exit 0
     fi
@@ -74,25 +61,19 @@ main(){
     sudo find /etc/ -type f -name "*unattended-upgrades*" | while read line; do if [ $(grep -i timeout $line | wc -l) -ne 0 ]; then echo $line; sed "s/1800/15/g" -i $line; fi ; done 
 
 
-    if [ ! -f $file ] || [ $(grep "$runtype OK" $file | wc -l) -eq 0 ]; then
+    if [ ! -f $file ] || [ $(grep "$runtype OK" $file | wc -l) -eq 0 ];
+    then
         cat /etc/os-release  | grep -i PRETT | cut -d '"' -f 2 | cut -d "." -f 1 > $file
         echo "$(date +%Y-%m-%d' '%T) $runtype IN PROGRESS" | sudo tee -a $file
         sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPDATE IN PROGRESS" --icon=dialog-information'
         
         yes | sudo dpkg --configure -a > /dev/null
-
         sudo rm -f /var/lib/apt/lists/* > /dev/null
-
-        #Nala package kezelő ellenőrzése
-        # if ! check_nala;
-        # then
-        #     echo "Nala nincs telepítve ERROR"
-        #     exit 1
-        # fi
-        sudo apt update -y
+        sudo apt-get update -y
 
         exitcode=$?; sed '/IN PROGRESS/d' -i $file
-        if [ $exitcode -ne 0 ] && [ $exitcode -ne 100 ]; then
+        if [ $exitcode -ne 0 ] && [ $exitcode -ne 100 ];
+        then
                 echo "[INFO] Nem sikerult lekerni a frissitesek listajat. Visszateresi ertek: $exitcode"
                 sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPDATE FAILED" --icon=dialog-information'
                 exit 1
@@ -105,7 +86,8 @@ main(){
 
     echo ""
 
-    if [ -f $file ] && [ $(grep "$runtype OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype2 OK" $file | wc -l) -eq 0 ]; then
+    if [ -f $file ] && [ $(grep "$runtype OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype2 OK" $file | wc -l) -eq 0 ];
+    then
         echo "$(date +%Y-%m-%d' '%T) $runtype2 IN PROGRESS" | sudo tee -a $file
         sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPGRADE IN PROGRESS" --icon=dialog-information'
         
@@ -118,9 +100,9 @@ main(){
             sudo snap set system proxy.http="http://dc-proxy01.server.bardihu.lan:3128" # via Zsolt
             sudo snap set system proxy.http="https://dc-proxy01.server.bardihu.lan:3128" # via Zsolt
             sudo sh -c "echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections" # via Zsolt
-            sudo DEBIAN_FRONTEND=noninteractive apt install keyboard-configuration # via Zsolt removed -yq
-            sudo apt install -y -q # via Zsolt via Laszlo
-            apt install msttcorefonts -qq # via Zsolt via Laszlo
+            sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install keyboard-configuration # via Zsolt
+            # sudo apt-get install -y -q # via Zsolt TODO
+            apt-get install msttcorefonts -qq # via Zsolt
             snap install chromium # via Zsolt
         fi
     
@@ -145,7 +127,7 @@ main(){
             echo "[INFO] Nem sikerult lefuttatni az apt upgrade-t. Visszateresi ertek: $exitcode"
             sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPGRADE FAILED" --icon=dialog-information'
             echo "[INFO] apt fix missing futtatasa"
-            sudo apt update --fix-missing >/dev/null
+            sudo apt-get update --fix-missing >/dev/null
             sudo su user -c ' DISPLAY=:0 notify-send -t 0 "KLIENS UJRAINDITASA EGY PERCEN BELUL" --icon=dialog-information'
             sleep 5; sudo reboot
             exit 1
@@ -166,9 +148,7 @@ main(){
         yes | sudo dpkg --configure -a > /dev/null
         yes | apt-get update --fix-missing >/dev/null # via Zsolt
 
-
-    # yes | sudo apt install -f -y > /dev/null
-    
+        # yes | sudo apt install -f -y > /dev/null
         # yes | DEBIAN_FRONTEND=noninteractive sudo timeout 7200 apt -o Dpkg::Options::="--force-confnew" --force-yes -fuy dist-upgrade  --allow-unauthenticated  < /dev/null
         # yes | DEBIAN_FRONTEND=noninteractive sudo timeout 7200 apt -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --force-yes -fuy dist-upgrade#  --allow-unauthenticated  < /dev/null
         yes | apt dist-upgrade -y # via Zsolt
@@ -178,7 +158,7 @@ main(){
         yes | apt update -y # via Zsolt
         yes | apt upgrade -y # via Zsolt
         yes | apt autoremove -y # via Zsolt
-        yes |  apt clean # via Zsolt
+        yes | apt clean # via Zsolt
 
         sudo rm -f /etc/apt/apt.conf.d/local
         # grub reinstall
@@ -203,13 +183,6 @@ main(){
 
     exit 0
 }
-
-
-
-# if ! check_nala;
-# then
-#     nala_install 1
-# fi
 
 kill_systemd_p
 watchdog_timelimit
