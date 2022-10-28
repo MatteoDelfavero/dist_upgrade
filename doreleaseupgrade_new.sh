@@ -1,27 +1,89 @@
 #!/bin/bash
+#libc restart force
+# force reboot
+
 
 sudo chown administrator:administrator /home/administrator/.bash_history # bugfix
 
+############### Globalis valtozok ###################
 file="/home/ansible/releaseupgrade"
 runtype="APT UPDATE"
 runtype2="APT UPGRADE"
 runtype3="APT DISTUPGRADE"
+OS=""
+VER=""
 
-
-disk_space(){
-    MBITE=$1
-    FREE=`df -k --output=avail "$PWD" | tail -n1`   # df -k not df -h
-    if [[ $FREE -lt $MBITE*1024 ]];
+############### Funkciok ###############
+get_os_ver(){
+    if [ -f /etc/os-release ];
     then
-        echo "else nincs elegendo hely "
+        . /etc/os-release
+        OS=$NAME
+        VER=$VERSION_ID
     else
-        echo "Van elegendo hely '$FREE'"
+        echo "ERROR: I need the file /etc/os-release to determine what my distribution is..."
+        # If you want, you can include older or distribution specific files here...
+        exit
+    fi
+}
+
+
+#user felhasznak
+notify(){
+    PUBLIC=$1
+    HEADER=$2
+    MSG=$3
+    echo "$MSG"
+    if [ $PUBLIC != "1" ]; then
+        return
+    fi
+    
+    if [ "$VER" = "16.04" ]; then
+        sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPDATE IN PROGRESS" --icon=dialog-information'
+    elif [ "$VER" = "18.04" ]; then
+        DISPLAY=:0.0 /usr/bin/notify-send --icon="/home/user/scrips/ba.png" -t 30000 -a batify "$HEADER" "$MSG"
+    elif [ "$VER" = "20.04" ]; then
+        DISPLAY=:0.0 /usr/bin/notify-send --icon="/home/user/scrips/ba.png" -t 30000 -a batify "$HEADER" "$MSG"
+    else
+        DISPLAY=:0 notify-send -t 0 "UPDATE IN PROGRESS" --icon=dialog-information
+    fi
+}
+
+notify 1 "[INFO]" "Kiindulasi verzio: 18.04 | Uj verzio: 20.04"
+notify 1 "[INFO]" "Sikerult lekerni a frissitesek listajat. Visszateresi ertek: 0"
+notify 1 "[INFO]" "apt-bol telepitett Chromium eltavolitasa"
+notify 1 "[INFO]" "apt fix missing futtatasa"
+
+#Beallitjuk, hogy a teljes telepites noninteractive.
+set_non_interactive_install(){
+    echo "Non-interactive telepites globalis beallitasa"
+    echo "debconf debconf/frontend select Noninteractive" | sudo debconf-set-selections
+}
+
+#Szabad hely ellenorzese disc_space [ellenorizni kivant minimum Gb] use: disk_space 2
+disc_space(){
+    echo "Szabad tarhely ellenorzese"
+    CHANGE=1024
+    MIN_GBIT=$1 #Megadott minimum Gb
+    RGBIT=$(((($MIN_GBIT * $CHANGE)) * $CHANGE))
+    FREE=`df -k --output=avail "$PWD" | tail -n1` #Szabad hely
+    FREEGB=$(((($FREE / $CHANGE)) / $CHANGE )) #Szabad hely Gb-ba
+    if [[ $FREE -lt $RGBIT ]];
+    then
+        echo '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        echo "!Nincs elegendo hely! Rendelkezésre áll: '$FREEGB'Gb. Szukseges lemezterulet a muvelet elinditasahoz '$MIN_GBIT'Gb!"
+        echo '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        exit 1
+    else
+        echo "Van elegendo hely '$FREEGB'GB"
     fi;
 }
 
+
+
 # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
 kill_systemd_p(){
-    # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
+    echo "Systemd-s processzek kilovese"
     ps aux | grep apt.systemd | grep -v gre0p | awk '{print $2}' | while read line; do kill -9 $line; done
     # es az ahhoz tartozo lockfajlt is
     sudo rm -f /var/lib/dpkg/lock* 
@@ -29,6 +91,7 @@ kill_systemd_p(){
 
 # ha tobb mint fel napig nem sikerult frissiteni, ujrakezdjuk az egeszet  
 watchdog_timelimit(){
+    echo "Whatchdog beallistasa"
     if [ -f $file ] && [ $(find $file -mmin -720 | wc -l) -eq 0 ];
     then
         rm -f $file;
@@ -37,7 +100,9 @@ watchdog_timelimit(){
 
 
 main(){
-    if [ -f $file ]; then
+    echo "Upgrade inditasa"
+    if [ -f $file ];
+    then
         # Ha minden lefutott, akkor nem megyunk tovabb
         if [ $(grep -E "\[FATAL\]|\[SUCCESS\]" $file | wc -l) -ne 0 ];
         then 
@@ -113,8 +178,15 @@ main(){
             sudo snap set system proxy.http="http://dc-proxy01.server.bardihu.lan:3128" # via Zsolt
             sudo snap set system proxy.http="https://dc-proxy01.server.bardihu.lan:3128" # via Zsolt
             sudo sh -c "echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections" # via Zsolt
+            
+
+            #keyboard-configuration telepites kozben ha kerne a "ket enteres reszt" beallitjuk, hogy mi legyen a layout, igy nem fogja kerni
+            #echo "debconf debconf/frontend select Noninteractive" | sudo debconf-set-selections
+            echo "keyboard-configuration keyboard-configuration/layout select 'Hungarian'" | sudo debconf-set-selections
+            echo "keyboard-configuration keyboard-configuration/layoutcode select 'hu'" | sudo debconf-set-selections
             sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install keyboard-configuration # via Zsolt
-            # sudo apt-get install -y -q # via Zsolt TODO
+
+            sudo apt-get install -y -q # via Zsolt TODO
             sudo apt-get update -y
             sudo apt-get install msttcorefonts -qq # via Zsolt
             sudo snap install chromium # via Zsolt
@@ -150,7 +222,8 @@ main(){
 
     echo ""
 
-    if [ -f $file ] && [ $(grep "$runtype OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype2 OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype3 OK" $file | wc -l) -eq 0 ]; then
+    if [ -f $file ] && [ $(grep "$runtype OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype2 OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype3 OK" $file | wc -l) -eq 0 ];
+    then
         echo "$(date +%Y-%m-%d' '%T) $runtype3 IN PROGRESS" | sudo tee -a $file
         sudo su user -c ' DISPLAY=:0 notify-send -t 0 "DISTUPGRADE IN PROGRESS" --icon=dialog-information'
 
@@ -165,8 +238,23 @@ main(){
         # yes | sudo apt install -f -y > /dev/null
         # yes | DEBIAN_FRONTEND=noninteractive sudo timeout 7200 apt -o Dpkg::Options::="--force-confnew" --force-yes -fuy dist-upgrade  --allow-unauthenticated  < /dev/null
         # yes | DEBIAN_FRONTEND=noninteractive sudo timeout 7200 apt -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --force-yes -fuy dist-upgrade#  --allow-unauthenticated  < /dev/null
-        yes | sudo apt dist-upgrade -y # via Zsolt
-        yes | sudo timeout 7200 do-release-upgrade -f DistUpgradeViewNonInteractive </dev/null # ketto oraig futhat max
+        
+        #Beallitjuk, hogy ha upgrade kozben force restart kezi megereositest kerne, akkor ne dobja fel, mert alapbol true ra allitottuk
+        # echo '<package-and-setting-string>' | sudo debconf-set-selections
+        echo 'libssl1.1 libraries/restart-without-asking boolean true' | sudo debconf-set-selections
+        echo 'libc6 libraries/restart-without-asking boolean true' | debconf-set-selections
+        echo 'libc6:amd64 libraries/restart-without-asking boolean true' | debconf-set-selections
+        echo 'libpam0g libraries/restart-without-asking boolean true' | debconf-set-selections
+
+        #bonus biztosra mehetunk, hogy package-nel se jojjon fel
+        echo '* libraries/restart-without-asking boolean true' | sudo debconf-set-selections
+
+
+        # Vagy ha minden kotel szakad es a 20. stackoverflow sem segit akkor csak remove-oljuk a needrestart-ot :)
+        # apt remove needrestart
+
+        yes | sudo DEBIAN_FRONTEND=noninteractive apt dist-upgrade -y # via Zsolt
+        yes | sudo timeout 7200 DEBIAN_FRONTEND=noninteractive do-release-upgrade -f DistUpgradeViewNonInteractive </dev/null # ketto oraig futhat max
         exitcode=$?; sed '/IN PROGRESS/d' -i $file
     
         yes | sudo apt update -y # via Zsolt
@@ -187,7 +275,8 @@ main(){
         sudo su user -c ' DISPLAY=:0 notify-send -t 0 "DISTUPGRADE OK" --icon=dialog-information'
         sudo su user -c ' DISPLAY=:0 notify-send -t 0 "KLIENS UJRAINDITASA EGY PERCEN BELUL" --icon=dialog-information'
 
-        if [ $(find /etc/systemd/system/multi-user.target.wants/x11vnc.service -type l | wc -l) -eq 0 ]; then # Ubi 18 alatt mar nem indul el systemd alatt, ha nem symlink
+        if [ $(find /etc/systemd/system/multi-user.target.wants/x11vnc.service -type l | wc -l) -eq 0 ];
+        then # Ubi 18 alatt mar nem indul el systemd alatt, ha nem symlink
             sudo mv /etc/systemd/system/multi-user.target.wants/x11vnc.service /lib/systemd/system
             sudo ln -s /lib/systemd/system/x11vnc.service /etc/systemd/system/multi-user.target.wants/
         fi
@@ -198,6 +287,9 @@ main(){
     exit 0
 }
 
-kill_systemd_p
-watchdog_timelimit
+set_non_interactive_install # Globalisan beallitjuk, hogy non interactive a telepites
+disc_space 2 # Le ellenorizzuk, hogy van-e minimum 2 Gb szabad hely a gepen
+sleep 2
+kill_systemd_p # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
+watchdog_timelimit # ha tobb mint fel napig nem sikerult frissiteni, ujrakezdjuk az egeszet 
 main
