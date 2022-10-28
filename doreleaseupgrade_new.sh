@@ -8,6 +8,17 @@ runtype2="APT UPGRADE"
 runtype3="APT DISTUPGRADE"
 
 
+disk_space(){
+    MBITE=$1
+    FREE=`df -k --output=avail "$PWD" | tail -n1`   # df -k not df -h
+    if [[ $FREE -lt $MBITE*1024 ]];
+    then
+        echo "else nincs elegendo hely "
+    else
+        echo "Van elegendo hely '$FREE'"
+    fi;
+}
+
 # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
 kill_systemd_p(){
     # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
@@ -77,7 +88,7 @@ main(){
         if [ $exitcode -ne 0 ] && [ $exitcode -ne 100 ];
         then
                 echo "[INFO] Nem sikerult lekerni a frissitesek listajat. Visszateresi ertek: $exitcode"
-                sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPDATE FAILED" --icon=dialog-information'
+            
                 exit 1
         else
                 echo "[INFO] Sikerult lekerni a frissitesek listajat. Visszateresi ertek: $exitcode"
