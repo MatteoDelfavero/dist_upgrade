@@ -5,22 +5,24 @@ sudo chown administrator:administrator /home/administrator/.bash_history # bugfi
 ############### Globalis valtozok ###################
 file="/home/ansible/releaseupgrade"
 BA_ONLINE_LOGO="opsrepo.bardiauto.hu/installers/bardi_auto_logo-v1.png"
-# BA_ONLINE_LOGO="https://www.bardiauto.hu/webshop/images/bardi-auto-logo_fb2_HU.png"
 BA_OFFLINE_LOGO="$(pwd)/ba.png"
 runtype="APT UPDATE"
 runtype2="APT UPGRADE"
 runtype3="APT DISTUPGRADE"
+USER_NAME="user"
+USER_UID=$(id -u $USER_NAME)
 OS=""
 VER=""
 
 ############### Funkciok ###############
-
+# Ellenorizzuk, hogy a Bardi Auto logo le van e toltve az uzenetekhez.
 assets(){
     if [ ! -f "$BA_OFFLINE_LOGO" ]; then
         wget -qO $BA_OFFLINE_LOGO $BA_ONLINE_LOGO
     fi
 }
 
+# Lekerjuk a distro verziojat
 get_os_ver(){
     if [ -f /etc/os-release ];
     then
@@ -33,31 +35,33 @@ get_os_ver(){
         exit
     fi
 }
-
-
-#user felhasznak
+# Asztali ertesites kuldese a felhasznalonak
+# notify [Public 0 | 1:int] [InfoType:str] [Message:str]  |  notify 1 "INFO" "apt fix missing futtatasa"
 notify(){
     PUBLIC=$1
     HEADER=$2
     MSG=$3
-    echo "$MSG $BA_OFFLINE_LOGO"
+    echo "[$HEADER] $MSG $BA_OFFLINE_LOGO"
     if [ $PUBLIC != "1" ]; then
         return
     fi
     
     if [ "$VER" = "16.04" ]; then
         sudo su user -c ' DISPLAY=:0 notify-send -t 0 "$MSG" --icon=$BA_OFFLINE_LOGO'
+
+        sudo su user -c ' DISPLAY=:0 notify-send -t 0 "asd"'
     elif [ "$VER" = "18.04" ]; then
-        DISPLAY=:0.0 /usr/bin/notify-send --icon=$BA_OFFLINE_LOGO -t 30000 -a batify "$HEADER" "$MSG"
+        sudo su user -c ' DISPLAY=:0 notify-send -t 0 "$MSG" --icon=$BA_OFFLINE_LOGO'
+        # DISPLAY=:0.0 /usr/bin/notify-send --icon=$BA_OFFLINE_LOGO -t 60000 -a batify "$HEADER" "$MSG"
     elif [ "$VER" = "20.04" ]; then
-        # DISPLAY=:0 notify-send -t 0 "$MSG" --icon=$BA_OFFLINE_LOGO
-        DISPLAY=:0 /usr/bin/notify-send --icon=$BA_OFFLINE_LOGO -t 30000 -a batify "[$HEADER]" "$MSG"
+        # DISPLAY=:0.0 /usr/bin/notify-send --icon=$BA_OFFLINE_LOGO -t 60000 -a batify "$HEADER" "$MSG"
+        sudo -u user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -a batify -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER" "$MSG"
     else
         DISPLAY=:0 notify-send -t 0 "$MSG" --icon=dialog-information
     fi
 }
 
-
+# sudo su user -c  'DISPLAY=:0.0 /usr/bin/notify-send --icon=/home/user/scrips/dist_upgrade/ba.png -t 60000 -a batify "asd" "asd"'
 
 #Beallitjuk, hogy a teljes telepites noninteractive.
 set_non_interactive_install(){
@@ -65,7 +69,8 @@ set_non_interactive_install(){
     echo "debconf debconf/frontend select Noninteractive" | sudo debconf-set-selections
 }
 
-#Szabad hely ellenorzese disc_space [ellenorizni kivant minimum Gb] use: disk_space 2
+#Szabad hely ellenorzese
+# disc_space [ellenorizni kivant minimum Gb:int]  |  disk_space 2
 disc_space(){
     echo "Szabad tarhely ellenorzese"
     CHANGE=1024
@@ -75,9 +80,7 @@ disc_space(){
     FREEGB=$(((($FREE / $CHANGE)) / $CHANGE )) #Szabad hely Gb-ba
     if [[ $FREE -lt $RGBIT ]];
     then
-        echo '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-        echo "!Nincs elegendo hely! Rendelkezésre áll: '$FREEGB'Gb. Szukseges lemezterulet a muvelet elinditasahoz '$MIN_GBIT'Gb!"
-        echo '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+        notify 1 "FATAL" "Nincs elegendo hely! Rendelkezésre áll: $FREEGB Gb. Szukseges lemezterulet a muvelet elinditasahoz $MIN_GBIT Gb!"
         exit 1
     else
         echo "Van elegendo hely '$FREEGB'GB"
@@ -293,16 +296,13 @@ main(){
 }
 
 
-get_os_ver
-assets
+get_os_ver # Lekerjuk a distro verziojat
+assets # Ellenorizzuk, hogy a Bardi Auto logo le van e toltve az uzenetekhez.
 # set_non_interactive_install # Globalisan beallitjuk, hogy non interactive a telepites
-# disc_space 2 # Le ellenorizzuk, hogy van-e minimum 2 Gb szabad hely a gepen
-# sleep 2
+disc_space 200 # Le ellenorizzuk, hogy van-e minimum 2 Gb szabad hely a gepen
 # kill_systemd_p # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
 # watchdog_timelimit # ha tobb mint fel napig nem sikerult frissiteni, ujrakezdjuk az egeszet 
 # main
 
-# notify 1 "[INFO]" "Kiindulasi verzio: 18.04 | Uj verzio: 20.04"
-# notify 1 "[INFO]" "Sikerult lekerni a frissitesek listajat. Visszateresi ertek: 0"
-# notify 1 "[INFO]" "apt-bol telepitett Chromium eltavolitasa"
-notify 1 "INFO" "apt fix missing futtatasa"
+
+ notify 1 "INFO" "apt fix missing futtatasa"
