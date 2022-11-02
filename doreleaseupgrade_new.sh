@@ -1,12 +1,12 @@
 #!/bin/bash
-#libc restart force
 # force reboot
-
-
 sudo chown administrator:administrator /home/administrator/.bash_history # bugfix
 
 ############### Globalis valtozok ###################
 file="/home/ansible/releaseupgrade"
+BA_ONLINE_LOGO="opsrepo.bardiauto.hu/installers/bardi_auto_logo-v1.png"
+# BA_ONLINE_LOGO="https://www.bardiauto.hu/webshop/images/bardi-auto-logo_fb2_HU.png"
+BA_OFFLINE_LOGO="$(pwd)/ba.png"
 runtype="APT UPDATE"
 runtype2="APT UPGRADE"
 runtype3="APT DISTUPGRADE"
@@ -14,6 +14,13 @@ OS=""
 VER=""
 
 ############### Funkciok ###############
+
+assets(){
+    if [ ! -f "$BA_OFFLINE_LOGO" ]; then
+        wget -qO $BA_OFFLINE_LOGO $BA_ONLINE_LOGO
+    fi
+}
+
 get_os_ver(){
     if [ -f /etc/os-release ];
     then
@@ -33,26 +40,24 @@ notify(){
     PUBLIC=$1
     HEADER=$2
     MSG=$3
-    echo "$MSG"
+    echo "$MSG $BA_OFFLINE_LOGO"
     if [ $PUBLIC != "1" ]; then
         return
     fi
     
     if [ "$VER" = "16.04" ]; then
-        sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPDATE IN PROGRESS" --icon=dialog-information'
+        sudo su user -c ' DISPLAY=:0 notify-send -t 0 "$MSG" --icon=$BA_OFFLINE_LOGO'
     elif [ "$VER" = "18.04" ]; then
-        DISPLAY=:0.0 /usr/bin/notify-send --icon="/home/user/scrips/ba.png" -t 30000 -a batify "$HEADER" "$MSG"
+        DISPLAY=:0.0 /usr/bin/notify-send --icon=$BA_OFFLINE_LOGO -t 30000 -a batify "$HEADER" "$MSG"
     elif [ "$VER" = "20.04" ]; then
-        DISPLAY=:0.0 /usr/bin/notify-send --icon="/home/user/scrips/ba.png" -t 30000 -a batify "$HEADER" "$MSG"
+        # DISPLAY=:0 notify-send -t 0 "$MSG" --icon=$BA_OFFLINE_LOGO
+        DISPLAY=:0 /usr/bin/notify-send --icon=$BA_OFFLINE_LOGO -t 30000 -a batify "[$HEADER]" "$MSG"
     else
-        DISPLAY=:0 notify-send -t 0 "UPDATE IN PROGRESS" --icon=dialog-information
+        DISPLAY=:0 notify-send -t 0 "$MSG" --icon=dialog-information
     fi
 }
 
-notify 1 "[INFO]" "Kiindulasi verzio: 18.04 | Uj verzio: 20.04"
-notify 1 "[INFO]" "Sikerult lekerni a frissitesek listajat. Visszateresi ertek: 0"
-notify 1 "[INFO]" "apt-bol telepitett Chromium eltavolitasa"
-notify 1 "[INFO]" "apt fix missing futtatasa"
+
 
 #Beallitjuk, hogy a teljes telepites noninteractive.
 set_non_interactive_install(){
@@ -287,9 +292,17 @@ main(){
     exit 0
 }
 
-set_non_interactive_install # Globalisan beallitjuk, hogy non interactive a telepites
-disc_space 2 # Le ellenorizzuk, hogy van-e minimum 2 Gb szabad hely a gepen
-sleep 2
-kill_systemd_p # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
-watchdog_timelimit # ha tobb mint fel napig nem sikerult frissiteni, ujrakezdjuk az egeszet 
-main
+
+get_os_ver
+assets
+# set_non_interactive_install # Globalisan beallitjuk, hogy non interactive a telepites
+# disc_space 2 # Le ellenorizzuk, hogy van-e minimum 2 Gb szabad hely a gepen
+# sleep 2
+# kill_systemd_p # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
+# watchdog_timelimit # ha tobb mint fel napig nem sikerult frissiteni, ujrakezdjuk az egeszet 
+# main
+
+# notify 1 "[INFO]" "Kiindulasi verzio: 18.04 | Uj verzio: 20.04"
+# notify 1 "[INFO]" "Sikerult lekerni a frissitesek listajat. Visszateresi ertek: 0"
+# notify 1 "[INFO]" "apt-bol telepitett Chromium eltavolitasa"
+notify 1 "INFO" "apt fix missing futtatasa"
