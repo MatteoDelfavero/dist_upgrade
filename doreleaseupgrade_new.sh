@@ -48,13 +48,11 @@ notify(){
     
     if [ "$VER" = "16.04" ]; then
         sudo su user -c ' DISPLAY=:0 notify-send -t 0 "$MSG" --icon=$BA_OFFLINE_LOGO'
-
-        sudo su user -c ' DISPLAY=:0 notify-send -t 0 "asd"'
     elif [ "$VER" = "18.04" ]; then
-        sudo su user -c ' DISPLAY=:0 notify-send -t 0 "$MSG" --icon=$BA_OFFLINE_LOGO'
+        sudo -u user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -a batify -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER" "$MSG"
+        #sudo su user -c ' DISPLAY=:0 notify-send -t 0 "$MSG" --icon=$BA_OFFLINE_LOGO'
         # DISPLAY=:0.0 /usr/bin/notify-send --icon=$BA_OFFLINE_LOGO -t 60000 -a batify "$HEADER" "$MSG"
     elif [ "$VER" = "20.04" ]; then
-        # DISPLAY=:0.0 /usr/bin/notify-send --icon=$BA_OFFLINE_LOGO -t 60000 -a batify "$HEADER" "$MSG"
         sudo -u user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -a batify -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER" "$MSG"
     else
         DISPLAY=:0 notify-send -t 0 "$MSG" --icon=dialog-information
