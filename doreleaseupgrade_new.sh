@@ -56,8 +56,10 @@ notify() {
     if [ "$VER" = "16.04" ]; then
         sudo su $USER_NAME -c ' DISPLAY=:0 notify-send -t 0 "$MSG" --icon=dialog-information'
     elif [ "$VER" = "18.04" ]; then
-        sudo -u $USER_NAME DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -t 60000 --icon=dialog-information "$HEADER Rendszer frissites" "$MSG"
+        sudo -u $USER_NAME DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER Rendszer frissites" "$MSG"
     elif [ "$VER" = "20.04" ]; then
+        sudo -u $USER_NAME DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER Rendszer frissites" "$MSG"
+    elif [ "$VER" = "22.04" ]; then
         sudo -u $USER_NAME DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER Rendszer frissites" "$MSG"
     elif [ "$VER" = "0" ]; then
         sudo -u $USER_NAME DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER Rendszer frissites" "$MSG"
