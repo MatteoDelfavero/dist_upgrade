@@ -1,37 +1,44 @@
 #!/bin/bash
-# force reboot
-# TODO net ellenorzese
-# TODO ha nincs releaseupgrade file, hozzon letre?
+
+# TODO ping teszteles befejezese, biztos ami biztos
+# HINT: ha restartot ker
+# if [ -f /var/run/reboot-required ]; then
+# 	sudo reboot
+# fi
+
+
 sudo chown administrator:administrator /home/administrator/.bash_history # bugfix
 
 ############### Globalis valtozok ###################
-file="/home/ansible/releaseupgrade" # cat /home/ansible/releaseupgrade
+file="/home/ansible/releaseupgrade"
 BA_ONLINE_LOGO="opsrepo.bardiauto.hu/installers/bardi_auto_logo-v1.png"
-BA_OFFLINE_LOGO="$(pwd)/ba.png"
+USER_NAME="user"
+BA_OFFLINE_LOGO="/home/$USER_NAME/ba.png" # user konyvtaraba jell lennie, hogy tudja olvasni
 runtype="APT UPDATE"
 runtype2="APT UPGRADE"
 runtype3="APT DISTUPGRADE"
-USER_NAME="user"
 USER_UID=$(id -u $USER_NAME)
 OS=""
 VER=""
 
 ############### Funkciok ###############
 # Ellenorizzuk, hogy a Bardi Auto logo le van e toltve az uzenetekhez.
+# TODO ha nincs releaseupgrade file, hozzon letre?
 assets(){
-    if [ ! -d "/home/ansible" ]; then
-        echo "Nincs ansible mappa... Letrehozas..."
-        mkdir "/home/ansible/"
-    fi
+    # if [ ! -d "/home/ansible" ]; then
+    #     echo "Nincs ansible mappa... Letrehozas..."
+    #     mkdir "/home/ansible/"
+    # fi
     
-    if [ ! -f "$file" ]; then
-        echo "Nincs releaseupgrade file... Letrehozas..."
-        touch $file
-    fi
+    # if [ ! -f "$file" ]; then
+    #     echo "Nincs releaseupgrade file... Letrehozas..."
+    #     touch $file
+    # fi
     
     if [ ! -f "$BA_OFFLINE_LOGO" ]; then
         wget -qO $BA_OFFLINE_LOGO $BA_ONLINE_LOGO
     fi
+    
 }
 
 # Lekerjuk a distro verziojat
@@ -43,7 +50,6 @@ get_os_ver(){
         VER=$VERSION_ID
     else
         echo "ERROR: I need the file /etc/os-release to determine what my distribution is..."
-        # If you want, you can include older or distribution specific files here...
         exit
     fi
 }
@@ -60,21 +66,19 @@ notify(){
         return
     fi
     
+    # TODO Gnome a -t opciot figyelmenkivul hadja...
     if [ "$VER" = "16.04" ];
     then
-        sudo su user -c ' DISPLAY=:0 notify-send -t 0 "$MSG" --icon=$BA_OFFLINE_LOGO'
+        sudo su $USER_NAME -c ' DISPLAY=:0 notify-send -t 0 "$MSG" --icon=dialog-information'
         elif [ "$VER" = "18.04" ]; then
-        sudo -u user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -a batify -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER $DATE" "$MSG"
-        # sudo su user -c ' DISPLAY=:0 notify-send -t 0 "$MSG" --icon=$BA_OFFLINE_LOGO'
-        # DISPLAY=:0.0 /usr/bin/notify-send --icon=$BA_OFFLINE_LOGO -t 60000 -a batify "$HEADER" "$MSG"
+        sudo -u $USER_NAME DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER $DATE" "$MSG"
         elif [ "$VER" = "20.04" ]; then
-        sudo -u user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -a batify -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER $DATE" "$MSG"
+        sudo -u $USER_NAME DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER $DATE" "$MSG"
     else
-        DISPLAY=:0 notify-send -t 0 "$MSG" --icon=dialog-information
+        sudo su $USER_NAME -c ' DISPLAY=:0 notify-send -t 0 "$MSG" --icon=dialog-information'
+        sudo -u $USER_NAME DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/$USER_NAME/$USER_UID/bus notify-send -t 60000 --icon=$BA_OFFLINE_LOGO "$HEADER $DATE" "$MSG"
     fi
 }
-
-# sudo su user -c  'DISPLAY=:0.0 /usr/bin/notify-send --icon=/home/user/scrips/dist_upgrade/ba.png -t 60000 -a batify "asd" "asd"'
 
 #Beallitjuk, hogy a teljes telepites noninteractive.
 set_non_interactive_install(){
@@ -83,7 +87,7 @@ set_non_interactive_install(){
 }
 
 #Szabad hely ellenorzese
-# disc_space [ellenorizni kivant minimum Gb:int]  |  disk_space 2
+# disc_space [ellenorizni kivant minimum Gb:int]  |  disk_space 5
 disc_space(){
     echo "Szabad tarhely ellenorzese"
     CHANGE=1024
@@ -147,7 +151,7 @@ main(){
                     notify 0 "SUCCESS" "A frissites sikeres volt."
                 fi
                 #sudo su user -c ' DISPLAY=:0 notify-send -t 0 "VERZIOVALTAS KESZ, EREDMENYEK AZ MGMTFELULETEN" --icon=dialog-information'
-                notify 1 "SUCCESS" "VERZIOVALTAS KESZ, EREDMENYEK AZ MGMTFELULETEN"
+                notify 1 "SUCCESS" "Verziovaltas kesz, eredmenyek a MGMT feluleten."
                 exit 0
             fi
         fi
@@ -167,9 +171,9 @@ main(){
     if [ ! -f $file ] || [ $(grep "$runtype OK" $file | wc -l) -eq 0 ];
     then
         cat /etc/os-release  | grep -i PRETT | cut -d '"' -f 2 | cut -d "." -f 1 > $file
-        # echo "$(date +%Y-%m-%d' '%T) $runtype IN PROGRESS" | sudo tee -a $file
+        echo "$(date +%Y-%m-%d' '%T) $runtype IN PROGRESS" | sudo tee -a $file
         # sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPDATE IN PROGRESS" --icon=dialog-information'
-        notify 1 "INFO" "$runtype IN PROGRESS"
+        notify 1 "INFO" "$runtype Folyamatban"
         yes | sudo dpkg --configure -a > /dev/null
         sudo rm -f /var/lib/apt/lists/* > /dev/null
         sudo apt-get update -y
@@ -183,9 +187,9 @@ main(){
         else
             # echo "[INFO] Sikerult lekerni a frissitesek listajat. Visszateresi ertek: $exitcode"
             # sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPDATE OK" --icon=dialog-information'
-            # echo "$(date +%Y-%m-%d' '%T) $runtype OK" | sudo tee -a $file
+            echo "$(date +%Y-%m-%d' '%T) $runtype OK" | sudo tee -a $file
             notify 0 "INFO" "Sikerult lekerni a frissitesek listajat. Visszateresi ertek: $exitcode"
-            notify 1 "INFO" "UPDATE OK"
+            notify 1 "INFO" "Sikeres adat lekeres"
         fi
     fi
     
@@ -193,9 +197,9 @@ main(){
     
     if [ -f $file ] && [ $(grep "$runtype OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype2 OK" $file | wc -l) -eq 0 ];
     then
-        # echo "$(date +%Y-%m-%d' '%T) $runtype2 IN PROGRESS" | sudo tee -a $file
+        echo "$(date +%Y-%m-%d' '%T) $runtype2 IN PROGRESS" | sudo tee -a $file
         # sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPGRADE IN PROGRESS" --icon=dialog-information'
-        notify 1 "INFO" "$runtype2 IN PROGRESS"
+        notify 1 "INFO" "Frissites folyamatban."
         yes | sudo dpkg --configure -a > /dev/null
         
         if [ $(sudo cat /etc/os-release | grep VERSION_ID | grep 18 | wc -l) -ne 0 ];
@@ -230,14 +234,14 @@ main(){
         then
             # echo "[INFO] Sikeresen lefutott az apt upgrade. Visszateresi ertek: $exitcode"
             # sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPGRADE OK" --icon=dialog-information'
-            # echo "$(date +%Y-%m-%d' '%T) $runtype2 OK" | sudo tee -a $file
+            echo "$(date +%Y-%m-%d' '%T) $runtype2 OK" | sudo tee -a $file
             notify 0 "INFO" "Sikeresen lefutott az apt upgrade. Visszateresi ertek: $exitcode"
-            notify 1 "INFO" "$runtype2 OK"
+            notify 1 "INFO" "Frissites sikeres."
             if [ -f /var/run/reboot-required ];
             then
                 # echo "[INFO] Ujrainditas szukseges"
                 # sudo su user -c ' DISPLAY=:0 notify-send -t 0 "KLIENS UJRAINDITASA EGY PERCEN BELUL" --icon=dialog-information'
-                notify 1 "INFO" "KLIENS UJRAINDITASA EGY PERCEN BELUL"
+                notify 1 "INFO" "Kliens ujrainditasa 1 percen belul!"
                 sleep 15; sudo reboot
             fi
         else
@@ -245,11 +249,11 @@ main(){
             # sudo su user -c ' DISPLAY=:0 notify-send -t 0 "UPGRADE FAILED" --icon=dialog-information'
             # echo "[INFO] apt fix missing futtatasa"
             notify 0 "INFO" "Nem sikerult lefuttatni az apt upgrade-t. Visszateresi ertek: $exitcode"
-            notify 1 "FATAL" "UPGRADE FAILED probalkozas a helyreallitasra..."
+            notify 1 "FATAL" "Sikertelen frissites probalkozas a helyreallitasra..."
             notify 0 "INFO" "apt fix missing futtatasa"
             sudo apt-get update --fix-missing >/dev/null
             # sudo su user -c ' DISPLAY=:0 notify-send -t 0 "KLIENS UJRAINDITASA EGY PERCEN BELUL" --icon=dialog-information'
-            notify 1 "INFO" "KLIENS UJRAINDITASA EGY PERCEN BELUL"
+            notify 1 "INFO" "Kliens ujrainditasa 1 percen belul!"
             sleep 15; sudo reboot
             exit 1
         fi
@@ -259,16 +263,19 @@ main(){
     
     if [ -f $file ] && [ $(grep "$runtype OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype2 OK" $file | wc -l) -ne 0 ] && [ $(grep "$runtype3 OK" $file | wc -l) -eq 0 ];
     then
-        # echo "$(date +%Y-%m-%d' '%T) $runtype3 IN PROGRESS" | sudo tee -a $file
+        echo "$(date +%Y-%m-%d' '%T) $runtype3 IN PROGRESS" | sudo tee -a $file
         # sudo su user -c ' DISPLAY=:0 notify-send -t 0 "DISTUPGRADE IN PROGRESS" --icon=dialog-information'
-        notify 1 "INFO" "$runtype3 IN PROGRESS"
-        echo 'DPkg::options { "--force-confdef"; "--force-confnew"; }' | sudo tee /etc/apt/apt.conf.d/local
+        notify 1 "INFO" "Verzio frissites folyamatban."
+        
         sudo snap set system proxy.http="http://dc-proxy01.server.bardihu.lan:3128"
         sudo snap set system proxy.http="https://dc-proxy01.server.bardihu.lan:3128"
         
-        sudo rm -f /var/lib/apt/lists/* > /dev/null
-        yes | sudo dpkg --configure -a > /dev/null
-        yes | sudo apt-get update --fix-missing >/dev/null # via Zsolt
+        # sudo rm -f /var/lib/apt/lists/* > /dev/null
+        # yes | sudo dpkg --configure -a > /dev/null
+        # yes | sudo apt-get update --fix-missing >/dev/null # via Zsolt
+        rm -f /var/lib/apt/lists/*
+        dpkg --configure -a
+        apt-get update --fix-missing
         
         # yes | sudo apt install -f -y > /dev/null
         # yes | DEBIAN_FRONTEND=noninteractive sudo timeout 7200 apt -o Dpkg::Options::="--force-confnew" --force-yes -fuy dist-upgrade  --allow-unauthenticated  < /dev/null
@@ -284,20 +291,35 @@ main(){
         #bonus biztosra mehetunk, hogy package-nel se jojjon fel
         echo '* libraries/restart-without-asking boolean true' | sudo debconf-set-selections
         
-        
         # Vagy ha minden kotel szakad es a 20. stackoverflow sem segit akkor csak remove-oljuk a needrestart-ot :)
         # apt remove needrestart
+        # yes | sudo DEBIAN_FRONTEND=noninteractive apt dist-upgrade -y # via Zsolt
+        # via Zsolt
+        # yes | sudo timeout 7200 DEBIAN_FRONTEND=noninteractive do-release-upgrade -f DistUpgradeViewNonInteractive </dev/null # ketto oraig futhat max
+        # yes | sudo timeout 7200 do-release-upgrade -f DistUpgradeViewNonInteractive </dev/null # ketto oraig futhat max
         
-        yes | sudo DEBIAN_FRONTEND=noninteractive apt dist-upgrade -y # via Zsolt
-        yes | sudo timeout 7200 DEBIAN_FRONTEND=noninteractive do-release-upgrade -f DistUpgradeViewNonInteractive </dev/null # ketto oraig futhat max
+        
+        apt dist-upgrade -y
+        
+        # Ismet beallitjuk a noninteractive-ot
+        set_non_interactive_install
+        
+        # 16, 18 as verzional letrehozzuk ezt a filet /etc/apt/apt.conf.d/local
+        echo 'DPkg::options { "--force-confdef"; "--force-confnew"; }' | sudo tee /etc/apt/apt.conf.d/local
+        
+        # TODO timeout-ra errorozott az Ubuntu
+        do-release-upgrade -f DistUpgradeViewNonInteractive
+        
+        # Telepites utan toroljuk az ideiglenesen letrehozott filet, kesobbiekben nem kell
+        rm -f /etc/apt/apt.conf.d/local
+        
         exitcode=$?; sed '/IN PROGRESS/d' -i $file
         
-        yes | sudo apt update -y # via Zsolt
-        yes | sudo apt upgrade -y # via Zsolt
-        yes | sudo apt autoremove -y # via Zsolt
-        yes | sudo apt clean # via Zsolt
+        apt update -y # via Zsolt
+        apt upgrade -y # via Zsolt
+        apt autoremove -y # via Zsolt
+        apt clean # via Zsolt
         
-        sudo rm -f /etc/apt/apt.conf.d/local
         # grub reinstall
         grep -v rootfs /proc/mounts | grep "^/dev/" | awk '{print $1}' | tr -d '0123456789' > /tmp/grubmbrbd.tmp
         df -h /boot | grep "^/dev/" | awk '{print $1}' | tr -d '0123456789' >> /tmp/grubmbrbd.tmp
@@ -306,16 +328,20 @@ main(){
         
         cat /tmp/grubmbrbd.tmp | sort | uniq | while read bd; do sudo grub-install $bd; done
         
-        # echo "$(date +%Y-%m-%d' '%T) $runtype3 OK" | sudo tee -a $file
+        echo "$(date +%Y-%m-%d' '%T) $runtype3 OK" | sudo tee -a $file
         # sudo su user -c ' DISPLAY=:0 notify-send -t 0 "DISTUPGRADE OK" --icon=dialog-information'
         # sudo su user -c ' DISPLAY=:0 notify-send -t 0 "KLIENS UJRAINDITASA EGY PERCEN BELUL" --icon=dialog-information'
-        notify 1 "INFO" "$runtype3 OK"
-        notify 1 "INFO" "KLIENS UJRAINDITASA EGY PERCEN BELUL"
+        notify 1 "INFO" "Verzio frissites sikeres!"
+        notify 1 "INFO" "Kliens ujrainditasa 1 percen belul!"
         if [ $(find /etc/systemd/system/multi-user.target.wants/x11vnc.service -type l | wc -l) -eq 0 ];
         then # Ubi 18 alatt mar nem indul el systemd alatt, ha nem symlink
             sudo mv /etc/systemd/system/multi-user.target.wants/x11vnc.service /lib/systemd/system
             sudo ln -s /lib/systemd/system/x11vnc.service /etc/systemd/system/multi-user.target.wants/
         fi
+        
+        # Toroljuk a notificacion Bardiauto logot, mar nincs ra szuksegunk
+        rm $BA_OFFLINE_LOGO
+        
         sudo passwd -d user
         sleep 15; sudo reboot
     fi
@@ -324,13 +350,10 @@ main(){
 }
 
 
-get_os_ver # Lekerjuk a distro verziojat
-assets # Ellenorizzuk, hogy a Bardi Auto logo le van e toltve az uzenetekhez.
-sleep 5
+get_os_ver          # Lekerjuk a distro verziojat
+assets              # Ellenorizzuk, hogy a Bardi Auto logo le van e toltve az uzenetekhez.
 set_non_interactive_install # Globalisan beallitjuk, hogy non interactive a telepites
-disc_space 2 # Le ellenorizzuk, hogy van-e minimum 2 Gb szabad hely a gepen
-kill_systemd_p # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
-watchdog_timelimit # ha tobb mint fel napig nem sikerult frissiteni, ujrakezdjuk az egeszet
-main
-
-# notify 1 "INFO" "KLIENS UJRAINDITASA EGY PERCEN BELUL"
+disc_space 5        # Le ellenorizzuk, hogy van-e minimum 5 Gb szabad hely a gepen (18>20 ra minimum 3Gb kell neki)
+kill_systemd_p      # kilojjuk a systemd-s processzeket amik foghatjak az apt-ot
+watchdog_timelimit  # ha tobb mint fel napig nem sikerult frissiteni, ujrakezdjuk az egeszet
+main                # main upgrade release-upgrade futtatasa
