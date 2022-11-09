@@ -1,5 +1,7 @@
 #!/bin/bash
 
+#TODO $(date +%Y-%m-%d' '%T) beralni a logolásba
+
 sudo chown administrator:administrator /home/administrator/.bash_history # bugfix
 
 #!############## Global variables ###################
@@ -7,7 +9,8 @@ USER_NAME="user"
 USER_UID=$(id -u $USER_NAME)
 
 WORKING_DIR=$(pwd)
-LOG_DIR=$WORKING_DIR/log.$(date +%s)
+# LOG_DIR=$WORKING_DIR/log.$(date +%s)
+LOG_DIR="/home/ansible/log.$(date +%s)"
 file="/home/ansible/releaseupgrade"
 BA_OFFLINE_LOGO="/home/$USER_NAME/ba.png"
 
@@ -29,18 +32,18 @@ function fix_errors_from_dpkgLog() {
     fi
 
     #* Biztonsagi masolat keszitese a regi logfilerol
-    sudo mv $logfile $logfile.$(date +%s)
+    #sudo mv $logfile $logfile.$(date +%s)
 
     sudo dpkg --configure -a --force confdef 2>&1 | tee -a $LOG_DIR/dpkg.log
-    sudo apt-get -y clean 2>&1 | tee -a $LOG_DIR/apt.clean.log
-    sudo apt-get -y autoremove 2>&1 | tee -a $LOG_DIR/apt.autoremove.log
+    sudo apt-get --allow-unauthenticated -y clean 2>&1 | tee -a $LOG_DIR/apt.clean.log
+    sudo apt-get --allow-unauthenticated -y autoremove 2>&1 | tee -a $LOG_DIR/apt.autoremove.log
     for package in $(sudo cat $logfile | grep "a fájllista fájl hiányzik a következő csomaghoz"); do
         echo $package
         notify 0 "INFO" "$package csomag athelyezve a tmp konyvtarba"
         #* athelyezzuk a tmp mappaba
-        sduo mv /var/lib/dpkg/info/$package.* /tmp/
+        sudo mv /var/lib/dpkg/info/$package.* /tmp/
     done
-    sudo apt-get -y install --fix-broken 2>&1 | tee -a $LOG_DIR/fix-broken.log
+    sudo apt-get --allow-unauthenticated -y install --fix-broken 2>&1 | tee -a $LOG_DIR/fix-broken.log
 }
 
 #* Ellenorizzuk, hogy a Bardi Auto logo le van e toltve az uzenetekhez.
@@ -182,7 +185,7 @@ function main() {
         notify 1 "INFO" "$runtype Folyamatban"
         sudo dpkg --configure -a 2>&1 | tee -a $LOG_DIR/dpkg.log
         sudo rm -f /var/lib/apt/lists/* 2>&1 | tee -a $LOG_DIR/file.log
-        sudo apt-get update -y
+        sudo apt-get -y update
 
         exitcode=$?
         sed '/IN PROGRESS/d' -i $file
@@ -214,21 +217,21 @@ function main() {
             echo "keyboard-configuration keyboard-configuration/layoutcode select 'hu'" | sudo debconf-set-selections
             sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install keyboard-configuration # via Zsolt
 
-            sudo apt-get install -y -q # via Zsolt TODO
-            sudo apt-get update -y
-            sudo apt-get install msttcorefonts -qq # via Zsolt
-            sudo snap install chromium             # via Zsolt
+            sudo apt-get --allow-unauthenticated -y -f install # via Zsolt TODO
+            sudo apt-get -y update
+            sudo apt-get --allow-unauthenticated -y install msttcorefonts -qq # via Zsolt
+            sudo snap install chromium                                        # via Zsolt
         fi
 
-        sudo apt --fix-broken install 2>&1 | tee -a $LOG_DIR/fix-broken.log
+        sudo apt-get --allow-unauthenticated -y --fix-broken install 2>&1 | tee -a $LOG_DIR/fix-broken.log
         #sleep 60
         #sudo timeout 7200 apt upgrade -o Acquire::http::Dl-Limit=512 -y --allow-unauthenticated </dev/null # ketto oraig futhat max
         #* ketto oraig futhat max
 
         #* Toroljuk azokat a lock fileokat amik lock-olhatjak az apt-t
         sudo rm -f /var/lib/dpkg/lock* 2>&1 | tee -a $LOG_DIR/file.log
-        sudo apt-get update -y
-        sudo apt-get upgrade -o Acquire::http::Dl-Limit=512 -y --allow-unauthenticated --with-new-pkgs 2>&1 | tee -a $LOG_DIR/upgrade.log
+        sudo apt-get -y update
+        sudo apt-get -o Acquire::http::Dl-Limit=512 -y --allow-unauthenticated --with-new-pkgs upgrade 2>&1 | tee -a $LOG_DIR/upgrade.log
         fix_errors_from_dpkgLog
         #yes | sudo timeout 7200 apt upgrade -fy --allow-unauthenticated --with-new-pkgs </dev/null
 
@@ -287,24 +290,29 @@ function main() {
         #* Ismet beallitjuk a noninteractive-ot
         set_non_interactive_install
 
-        sudo apt dist-upgrade -y 2>&1 | tee -a $LOG_DIR/dist-upgrade.log
+        sudo apt-get --allow-unauthenticated -y dist-upgrade 2>&1 | tee -a $LOG_DIR/dist-upgrade.log
 
         #* 16, 18 as verzional letrehozzuk ezt a filet /etc/apt/apt.conf.d/local
         echo 'DPkg::options { "--force-confdef"; "--force-confnew"; }' | sudo tee /etc/apt/apt.conf.d/local
 
+        sudo dpkg --configure -a --force confdef
         #! timeout-ra errorozott az Ubuntu
-        sudo do-release-upgrade -f DistUpgradeViewNonInteractive 2>&1 | tee -a $LOG_DIR/do-release-upgrade.log
-
+        #! "--force-confdef"; "--force-confnew" az do-release-upgrade-nél
+        #! Használni apt-get: --allow-unauthenticated -y
+        sudo DEBIAN_FRONTEND=noninteractive do-release-upgrade -f DistUpgradeViewNonInteractive 2>&1 | tee -a $LOG_DIR/do-release-upgrade.log
+        # sudo sh -c 'echo "y\n\ny\ny\ny\ny\ny\ny\ny\ny\ny\ny\ny\ny\n" | DEBIAN_FRONTEND=noninteractive /usr/bin/do-release-upgrade'
         #* Telepites utan toroljuk az ideiglenesen letrehozott filet, kesobbiekben nem kell
         sudo rm -f /etc/apt/apt.conf.d/local 2>&1 | tee -a $LOG_DIR/file.log
 
         exitcode=$?
         sed '/IN PROGRESS/d' -i $file
 
-        sudo apt update -y                                               # via Zsolt
-        sudo apt upgrade -y 2>&1 | tee -a $LOG_DIR/upgrade.log           # via Zsolt
-        sudo apt-get autoremove -y 2>&1 | tee -a $LOG_DIR/autoremove.log # via Zsolt
-        sudo apt clean 2>&1 | tee -a $LOG_DIR/clean.log                  # via Zsolt
+        sudo apt update -y # via Zsolt
+        #! "--force-confdef"; "--force-confnew" az upgrade-nél
+        sudo apt -y upgrade 2>&1 | tee -a $LOG_DIR/upgrade.log # via Zsolt
+        #! "--force-confdef"; "--force-confnew" az autoremove-nél
+        sudo apt-get --allow-unauthenticated -y autoremove 2>&1 | tee -a $LOG_DIR/apt.autoremove.log # via Zsolt
+        sudo apt-get --allow-unauthenticated -y clean 2>&1 | tee -a $LOG_DIR/clean.log               # via Zsolt
 
         #* grub reinstall
         sudo grep -v rootfs /proc/mounts | grep "^/dev/" | awk '{print $1}' | tr -d '0123456789' >/tmp/grubmbrbd.tmp
