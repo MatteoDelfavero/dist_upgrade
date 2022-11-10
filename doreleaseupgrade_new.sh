@@ -1,7 +1,6 @@
 #!/bin/bash
 
-#TODO $(date +%Y-%m-%d' '%T) beralni a logolásba
-
+#! sudo ellenorzese
 sudo chown administrator:administrator /home/administrator/.bash_history # bugfix
 
 #!############## Global variables ###################
@@ -24,26 +23,58 @@ VER="0"
 #!############## Functions ###############
 #* dpkg log filebol kiolvassuk, hogy volt-e hiba az upgrade kozben.
 function fix_errors_from_dpkgLog() {
-    local logfile=/var/log/dpkg.log
+    # local logfile=/var/log/dpkg.log
+    # local logfile=$LOG_DIR/apt.autoremove.log
+    local logfile=$LOG_DIR/upgrade.log
 
     if [ ! -f $logfile ]; then
-        notify 0 "FATAL" "Nincs dpkg log file, ellenorzese kihagyva!"
-        return
+        notify 0 "WARNING" "Nincs dpkg log file, sajat log hasznalat!"
     fi
 
+    sudo echo "STARTED" >$LOG_DIR/fix_errors_from_dpkgLog.function
     #* Biztonsagi masolat keszitese a regi logfilerol
     #sudo mv $logfile $logfile.$(date +%s)
 
     sudo dpkg --configure -a --force confdef 2>&1 | tee -a $LOG_DIR/dpkg.log
     sudo apt-get --allow-unauthenticated -y clean 2>&1 | tee -a $LOG_DIR/apt.clean.log
     sudo apt-get --allow-unauthenticated -y autoremove 2>&1 | tee -a $LOG_DIR/apt.autoremove.log
-    for package in $(sudo cat $logfile | grep "a fájllista fájl hiányzik a következő csomaghoz"); do
-        echo $package
-        notify 0 "INFO" "$package csomag athelyezve a tmp konyvtarba"
+    for package in $(sudo cat $logfile | grep "a fájllista fájl hiányzik a következő csomaghoz" | grep -Po '(?<=„).*?(?=”)'); do
+        echo "$package csomag áthelyezve a //var//lib//dpkg//info/ mappabol a //tmp// mappaba." -a $LOG_DIR/package.move.log >tee
+        # notify 0 "INFO" "$package csomag athelyezve a tmp konyvtarba"
         #* athelyezzuk a tmp mappaba
-        sudo mv /var/lib/dpkg/info/$package.* /tmp/
+        sudo mv /var/lib/dpkg/info/$package.* /tmp/ 2>&1 | tee -a $LOG_DIR/file.log
     done
     sudo apt-get --allow-unauthenticated -y install --fix-broken 2>&1 | tee -a $LOG_DIR/fix-broken.log
+    sudo echo "OK" >>$LOG_DIR/fix_errors_from_dpkgLog.function
+}
+
+#* Beallituj a helyes idozonat, hogy telepites kozbe ne kerdezze
+function set_timezone() {
+    sudo timedatectl set-timezone Europe/Budapest
+}
+
+#* /var/run/motd.dynamic file-ba frissitjuk a helyes verziot
+function update_version_in_sshd() {
+    if [ ! -f /etc/os-release ]; then
+        notify 0 "WARNING" "Nincs /etc/os-release file, lepes kihagyva!"
+        return
+    fi
+
+    . /etc/os-release
+    local motdFile=/var/run/motd.dynamic
+    local originalVerStr="Ubuntu $VER.5 LTS"
+
+    if [ ! -f $motdFile ]; then
+        notify 0 "WARNING" "Nincs $motdFile file, lepes kihagyva!"
+        return
+    fi
+
+    if ! grep -q $originalVerStr "$motdFile"; then
+        notify 0 "WARNING" "Nem talalhato verzio a /var/run/motd.dynamic file-ba!"
+        return
+    fi
+
+    sed -i "s/$originalVerStr/$PRETTY_NAME/g" $motdFile
 }
 
 #* Ellenorizzuk, hogy a Bardi Auto logo le van e toltve az uzenetekhez.
@@ -157,7 +188,9 @@ function main() {
                 if [[ "$old" = "$new" ]]; then
                     notify 0 "FATAL" "A frissites sikertelen volt."
                     mv $file $file.$(date +%s)
-                    sudo reboot
+                    if [ -f /var/run/reboot-required ]; then
+                        sudo reboot
+                    fi
                 else
                     notify 0 "SUCCESS" "A frissites sikeres volt."
                 fi
@@ -172,6 +205,9 @@ function main() {
         echo -e "[INFO] Folyamat fut:\n$(cat $file)"
         exit 0
     fi
+
+    # echo 'DPkg::options { "--force-confdef"; "--force-confnew"; }' | sudo tee /etc/apt/apt.conf.d/local
+    echo 'DPkg::options {  "--force-confnew"; }' | sudo tee /etc/apt/apt.conf.d/local
 
     #* alapesetben fel oraig varna rebootkor az unattended-upgrades servicere, ezt levesszuk 15mp-re
     sudo find /etc/ -type f -name "*unattended-upgrades*" | while read line; do if [ $(grep -i timeout $line | wc -l) -ne 0 ]; then
@@ -189,6 +225,7 @@ function main() {
 
         exitcode=$?
         sed '/IN PROGRESS/d' -i $file
+        #! what? na ezt ne igy
         if [ $exitcode -ne 0 ] && [ $exitcode -ne 100 ]; then
             notify 0 "INFO" "Nem sikerult lekerni a frissitesek listajat. Visszateresi ertek: $exitcode"
         else
@@ -226,7 +263,8 @@ function main() {
         sudo apt-get --allow-unauthenticated -y --fix-broken install 2>&1 | tee -a $LOG_DIR/fix-broken.log
         #sleep 60
         #sudo timeout 7200 apt upgrade -o Acquire::http::Dl-Limit=512 -y --allow-unauthenticated </dev/null # ketto oraig futhat max
-        #* ketto oraig futhat max
+        #* upgrade elott beallitjuk az idozonat
+        set_timezone
 
         #* Toroljuk azokat a lock fileokat amik lock-olhatjak az apt-t
         sudo rm -f /var/lib/dpkg/lock* 2>&1 | tee -a $LOG_DIR/file.log
@@ -293,7 +331,8 @@ function main() {
         sudo apt-get --allow-unauthenticated -y dist-upgrade 2>&1 | tee -a $LOG_DIR/dist-upgrade.log
 
         #* 16, 18 as verzional letrehozzuk ezt a filet /etc/apt/apt.conf.d/local
-        echo 'DPkg::options { "--force-confdef"; "--force-confnew"; }' | sudo tee /etc/apt/apt.conf.d/local
+        #! athelyezve
+        #echo 'DPkg::options { "--force-confdef"; "--force-confnew"; }' | sudo tee /etc/apt/apt.conf.d/local
 
         sudo dpkg --configure -a --force confdef
         #! timeout-ra errorozott az Ubuntu
@@ -302,7 +341,6 @@ function main() {
         sudo DEBIAN_FRONTEND=noninteractive do-release-upgrade -f DistUpgradeViewNonInteractive 2>&1 | tee -a $LOG_DIR/do-release-upgrade.log
         # sudo sh -c 'echo "y\n\ny\ny\ny\ny\ny\ny\ny\ny\ny\ny\ny\ny\n" | DEBIAN_FRONTEND=noninteractive /usr/bin/do-release-upgrade'
         #* Telepites utan toroljuk az ideiglenesen letrehozott filet, kesobbiekben nem kell
-        sudo rm -f /etc/apt/apt.conf.d/local 2>&1 | tee -a $LOG_DIR/file.log
 
         exitcode=$?
         sed '/IN PROGRESS/d' -i $file
@@ -314,6 +352,7 @@ function main() {
         sudo apt-get --allow-unauthenticated -y autoremove 2>&1 | tee -a $LOG_DIR/apt.autoremove.log # via Zsolt
         sudo apt-get --allow-unauthenticated -y clean 2>&1 | tee -a $LOG_DIR/clean.log               # via Zsolt
 
+        sudo rm -f /etc/apt/apt.conf.d/local 2>&1 | tee -a $LOG_DIR/file.log
         #* grub reinstall
         sudo grep -v rootfs /proc/mounts | grep "^/dev/" | awk '{print $1}' | tr -d '0123456789' >/tmp/grubmbrbd.tmp
         df -h /boot | grep "^/dev/" | awk '{print $1}' | tr -d '0123456789' >>/tmp/grubmbrbd.tmp
@@ -329,6 +368,8 @@ function main() {
             sudo mv /etc/systemd/system/multi-user.target.wants/x11vnc.service /lib/systemd/system
             sudo ln -s /lib/systemd/system/x11vnc.service /etc/systemd/system/multi-user.target.wants/
         fi
+
+        update_version_in_sshd
 
         sudo passwd -d user
         sleep 15
